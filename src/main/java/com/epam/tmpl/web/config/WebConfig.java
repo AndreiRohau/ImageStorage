@@ -59,5 +59,4 @@ public class WebConfig extends WebMvcConfigurerAdapter {
 	public void configureContentNegotiation(final ContentNegotiationConfigurer configurer) {
 		configurer.favorPathExtension(false);
 	}
-
 }
