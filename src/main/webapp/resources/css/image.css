@@ -1,0 +1,24 @@
+div {
+	margin-left: 20px;
+}
+
+h1 {
+    color: navy;
+    margin-left: 20px;
+}
+
+.thumb {
+	height: 75px;
+	border: 1px solid #000;
+	margin: 10px 5px 0 0;
+}
+
+.imageContainer-img {
+	height: 150px;
+	border: 1px solid #000;
+	margin: 10px 5px 0 0;
+}
+
+#id {
+	display: none;
+}

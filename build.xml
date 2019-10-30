@@ -1,0 +1,198 @@
+<?xml version = '1.0' encoding = 'UTF-8'?> 
+<!DOCTYPE xml>
+<project name="ImageStorage" default="run" xmlns:ivy="antlib:org.apache.ivy.ant" basedir=".">
+	
+	<property file="src\main\resources\config.properties"/>
+	<property file="ant-global.properties"/>
+
+	<!-- CLEAN -->
+	<target name="clean">
+		<delete dir="${build.dir}" />
+		<delete dir="${ivy.lib}" />
+		<delete dir="${lib.dir}" />
+	</target>
+	
+	<!-- install IVY -->
+	<target name="ivy" description="Install ivy">
+		<get dest="${ANT_HOME}\lib\ivy.jar" src="http://search.maven.org/remotecontent?filepath=org/apache/ivy/ivy/2.4.0-rc1/ivy-2.4.0-rc1.jar" />
+		<path id="ivy.lib.path">
+			<fileset dir="${ANT_HOME}\lib" includes="*.jar" />
+		</path>
+		<taskdef resource="org/apache/ivy/ant/antlib.xml" uri="antlib:org.apache.ivy.ant" classpathref="ivy.lib.path" />
+	</target>
+	
+	<!-- retrieve dependencies with IVY -->
+	<target name="resolve" description="Retrieve dependencies with ivy" depends="clean, ivy">
+		<mkdir dir="${lib.dir}" />
+		<echo message="Getting dependencies..." />
+		<ivy:retrieve/>
+		<copy todir="${lib.dir}" overwrite="true">
+			<fileset dir="${ivy.lib}" includes="*.jar">
+			</fileset>
+		</copy>
+		<delete dir="${ivy.lib}" />
+		<!-- retrieve oracle database driver [http://www.datanucleus.org/downloads/maven2/oracle/ojdbc6/11.2.0.3/ojdbc6-11.2.0.3.jar] -->
+		<get dest="${lib.dir}" src="http://www.datanucleus.org/downloads/maven2/oracle/ojdbc6/11.2.0.3/ojdbc6-11.2.0.3.jar" />
+	</target>
+
+	<!-- OUTPUT -->
+	<target name="directories" depends="resolve">
+		<mkdir dir="${report.dir}" />
+		<mkdir dir="${project.dir}" />
+		<mkdir dir="${project.classes.dir}" />
+		<mkdir dir="${project.test.classes.dir}" />
+		<mkdir dir="${project.meta-inf.dir}" />
+		<mkdir dir="${project.web.resources.dir}" />
+		<mkdir dir="${project.web-inf.dir}" />
+		<mkdir dir="${project.web-inf.lib.dir}" />
+	</target>
+
+	<!-- COMPILE *.java files -->
+	<path id="compile.classpath">
+		<fileset dir="${lib.dir}" />
+	</path>
+	<path id="unit.test.compile.classpath">
+		<path refid="compile.classpath" />
+		<pathelement path="${project.classes.dir}" />
+	</path>
+	<target name="compile" depends="directories">
+		<javac classpathref="compile.classpath" includeantruntime="true" srcdir="${src.dir}" destdir="${project.classes.dir}" includes="**/*.java" debug="true" source="${jdk.version}" target="${jdk.version}">
+		</javac>
+		<javac classpathref="unit.test.compile.classpath" includeantruntime="true" srcdir="${test.src.dir}" destdir="${project.test.classes.dir}" includes="**/*.java" debug="true">
+		</javac>
+	</target>
+
+	<!-- prepare RESOURCES -->
+	<target name="resources" depends="compile">
+		<copy todir="${project.classes.dir}" overwrite="true">
+			<fileset dir="${resources.dir}" includes="**/*">
+			</fileset>
+		</copy>
+		<copy todir="${project.test.classes.dir}" overwrite="true">
+			<fileset dir="${test.resources.dir}" includes="**/*">
+			</fileset>
+		</copy>
+		<copy todir="${project.web.resources.dir}" overwrite="true">
+			<fileset dir="${src.webapp.resources.dir}" includes="**/*">
+			</fileset>
+		</copy>
+		<mkdir dir="${src.webapp.web-inf.dir}\images" />
+		<mkdir dir="${src.webapp.web-inf.dir}\views" />
+		<copy todir="${project.web-inf.dir}\images" overwrite="true">
+			<fileset dir="${src.webapp.web-inf.dir}\images" includes="**/*">
+			</fileset>
+		</copy>
+		<copy todir="${project.web-inf.dir}\views" overwrite="true">
+			<fileset dir="${src.webapp.web-inf.dir}\views" includes="**/*">
+			</fileset>
+		</copy>
+	</target>
+	
+	<!-- prepare DEPENDENCIES -->
+	<target name="dependencies" depends="resources">
+		<copy todir="${project.web-inf.lib.dir}" overwrite="true">
+			<fileset dir="${lib.dir}" includes="*.jar">
+			</fileset>
+		</copy>
+	</target>
+	
+	<!-- run TESTs -->
+	<path id="testing.path">
+		<pathelement path="${project.classes.dir}" />
+		<fileset dir="${project.web-inf.lib.dir}">
+		</fileset>
+	</path>
+	<target name="test" depends="dependencies">
+		<junit printsummary="yes" haltonfailure="yes">
+			<classpath refid="testing.path" />
+			<classpath location="${project.test.classes.dir}" />
+			<formatter type="xml" />
+			<batchtest fork="yes" todir="${report.dir}">
+				<fileset dir="${project.test.classes.dir}">
+				</fileset>
+			</batchtest>
+		</junit>
+	</target>
+
+	<!-- PACKAGE -->
+	<target name="package" depends="test">
+	</target>
+
+	<!-- WAR packaging -->
+	<target name="war" depends="package">
+		<war destfile="${project.dir}.war" needxmlfile='false'>
+			<webinf dir="${project.web-inf.dir}">
+				<exclude name="**/test-classes/**" />
+			</webinf>
+			<lib dir="${project.web-inf.lib.dir}" />
+			<zipfileset dir="${project.web.resources.dir}" prefix="resources" />
+		</war>
+	</target>
+
+	<!-- Copy war file to Tomcat -->
+	<target name="install" depends="war">
+		<copy todir="${TOMCAT_HOME}\webapps" file="${build.dir}\${project.name}.war">
+			<fileset dir="${build.dir}">
+				<exclude name="**/report/**"/>
+				<exclude name="**/ImageStorage/**"/>
+			</fileset>
+		</copy>
+	</target>
+
+	<!-- ================================= -->
+
+	<!-- Tomcat -->
+	<path id="tomcat.classpath">
+		<fileset dir="${TOMCAT_HOME}\lib">
+			<include name="**/*.jar" />
+			<include name="**/*.zip" />
+		</fileset>
+		<pathelement location="${TOMCAT_HOME}\bin\bootstrap.jar" />
+		<pathelement location="${TOMCAT_HOME}\bin\tomcat-juli.jar" />
+	</path>
+
+	<target name="tomcat-start">
+		<echo>Stop Tomcat</echo>
+		<java classname="org.apache.catalina.startup.Bootstrap" fork="true" classpathref="tomcat.classpath">
+			<jvmarg value="-Dcatalina.home=${TOMCAT_HOME}" />
+		</java>
+	</target>
+
+	<target name="tomcat-stop" depends="tomcat-check-status" if="tomcat.started">
+		<echo>Start Tomcat</echo>
+		<java classname="org.apache.catalina.startup.Bootstrap" fork="true" classpathref="tomcat.classpath">
+			<jvmarg value="-Dcatalina.home=${TOMCAT_HOME}" />
+			<arg line="stop" />
+		</java>
+		<sleep seconds="5" />
+	</target>
+
+	<target name="tomcat-check-status">
+		<condition property="tomcat.started">
+			<socket server="localhost" port="${tomcat.port}" />
+		</condition>
+	</target>
+
+	<target name="deploy" depends="install">
+		<sequential>
+			<antcall target="tomcat-stop" />
+			<echo>Deploy to server</echo>
+			<antcall target="tomcat-start" />
+		</sequential>
+	</target>
+
+	<target name="run" depends="deploy">
+		<echo>http://localhost:8888/ImageStorage</echo>
+		<echo>http://localhost:8888/ImageStorage</echo>
+			<echo>http://localhost:8888/ImageStorage</echo>
+		<echoxml>
+			 <a href="http://localhost:8888/ImageStorage">To image Storage</a>
+			 <a href="http://localhost:8888/ImageStorage">To image Storage</a>
+			 <a href="http://localhost:8888/ImageStorage">To image Storage</a>
+		</echoxml>
+		<!-- CHECK THIS URL
+		http://localhost:8888/ImageStorage/image
+		-->
+	</target>
+	
+</project>
